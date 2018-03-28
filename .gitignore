@@ -1,0 +1,5 @@
+config.json
+*.pdf
+export.sh
+*.swo
+*.swp
