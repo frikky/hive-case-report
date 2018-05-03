@@ -8,11 +8,9 @@ This is a really bad generator thehive case generator with copy pasting all over
 * Go to the directory you copied them to
 
 FIND A CASE:
-![caseId1](https://github.com/frikky/hive-case-report/blob/master/images/case.PNG?raw=true)
+![caseId1](https://github.com/frikky/hive-case-report/blob/master/report/images/case.PNG?raw=true)
 
 FIND ITS CASE ID:
-![caseId2](https://github.com/frikky/hive-case-report/blob/master/images/document.PNG?raw=true)
-
+![caseId2](https://github.com/frikky/hive-case-report/blob/master/report/images/document.PNG?raw=true)
 
 * Run: \\> .\report.exe \<caseId\> 
-

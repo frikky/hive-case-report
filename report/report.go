@@ -2,17 +2,10 @@ package main
 
 import (
 	"fmt"
-	//wordwrap "github.com/mitchellh/go-wordwrap"
-
-	"github.com/bitly/go-simplejson"
-	"strings"
-	//findfont "github.com/flopp/go-findfont"
 	"github.com/frikky/hive4go"
 	"github.com/signintech/gopdf"
-	"io/ioutil"
-	//"strings"
 	"log"
-	"os"
+	"strings"
 	"time"
 )
 
@@ -24,26 +17,6 @@ func getTime() string {
 	return fmt.Sprintf("%d-%02d-%02d %02d:%02d:%02d",
 		t.Year(), t.Month(), t.Day(),
 		t.Hour(), t.Minute(), t.Second())
-}
-
-func getHiveLogin() (string, string) {
-	var err error
-	var configpath string
-
-	configpath = "config.json"
-
-	file, err := ioutil.ReadFile(configpath)
-	if err != nil {
-		//log.Fatal(err)
-		fmt.Printf("%s Error getting hive: %s\n", getTime(), err)
-	}
-
-	jsondata, err := simplejson.NewJson(file)
-	if err != nil {
-		fmt.Printf("%s Error converting login to json: %s\n", getTime(), err)
-	}
-
-	return jsondata.Get("hiveurl").MustString(), jsondata.Get("hiveapikey").MustString()
 }
 
 // Cleans up markdown stuff
@@ -89,13 +62,12 @@ func fixOutOfBounds(text string, pageWidth float64, pageHeight float64, pageWidt
 		for _, item := range strings.Split(desc, " ") {
 			itemWidth, _ := pdf.MeasureTextWidth(item)
 
-			//fmt.Println(pdf.GetX()+itemWidth, pageWidth)
 			if pdf.GetX()+itemWidth > pageWidth+pageWidthCheck {
 				pdf.Br(20)
 				pdf.SetX(startPoint)
 			}
 
-			if pdf.GetY() > pageHeight-50 {
+			if pdf.GetY() > pageHeight-200 {
 				err = pdf.SetFont("OpenSans", "", 10)
 				if err != nil {
 					log.Print(err.Error())
@@ -155,7 +127,7 @@ func addLocalPage(ret *thehive.HiveCaseResp, tlp string, pageHeight float64) {
 	pdf.SetX(0)
 	pdf.SetY(0)
 	pdf.SetTextColor(100, 100, 100)
-	pdf.Image("thehive-logo.png", 20, 20, nil) //print image
+	pdf.Image("images/thehive-logo.png", 20, 20, nil) //print image
 	// SetX = totWidth-length(title)-50 > 200~
 
 	pdf.SetX(200) //move current location
@@ -179,14 +151,12 @@ func addLocalPage(ret *thehive.HiveCaseResp, tlp string, pageHeight float64) {
 	}
 }
 
-func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
-	//fmt.Println(string(ret.Raw))
+func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 	var err error
-	//fmt.Println(string(ret.Raw))
 
 	pageWidth := 595.28
 	pageHeight := 841.89
-	pageWidthCheck := 1600.0
+	pageWidthCheck := 2000.0
 
 	// Create object
 	pdf.Start(gopdf.Config{
@@ -237,14 +207,13 @@ func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 		for _, item := range strings.Split(desc, " ") {
 			itemWidth, _ := pdf.MeasureTextWidth(item)
 
-			//fmt.Println(pdf.GetX()+itemWidth, pageWidth)
 			if pdf.GetX()+itemWidth > pageWidth+pageWidthCheck {
 				pdf.Br(30)
 				pdf.SetX(20)
 			}
 
 			// Handles newlines and shit too
-			if pdf.GetY() > pageHeight-50 {
+			if pdf.GetY() > pageHeight-200 {
 				err = pdf.SetFont("OpenSans", "", 10)
 				if err != nil {
 					log.Print(err.Error())
@@ -271,42 +240,7 @@ func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 	}
 
 	// Clean up description
-	//fmt.Println(string(ret.Raw))
 	fixOutOfBounds(ret.Description, pageWidth, pageHeight, pageWidthCheck, ret, tlp, 20.0)
-	/*
-		desc = cleanupText(ret.Description)
-		pdf.SetX(20)
-
-		realWidth, _ = pdf.MeasureTextWidth(desc)
-		if realWidth > pageWidth {
-			for _, item := range strings.Split(desc, " ") {
-				itemWidth, _ := pdf.MeasureTextWidth(item)
-
-				//fmt.Println(pdf.GetX()+itemWidth, pageWidth)
-				if pdf.GetX()+itemWidth > pageWidth+pageWidthCheck {
-					pdf.Br(20)
-					pdf.SetX(20)
-				}
-
-				if pdf.GetY() > pageHeight-50 {
-					err = pdf.SetFont("OpenSans", "", 10)
-					if err != nil {
-						log.Print(err.Error())
-						return
-					}
-
-					addLocalPage(ret, tlp, pageHeight)
-
-				}
-				pdf.Cell(nil, fmt.Sprintf(" %s", item))
-			}
-			pdf.Br(40)
-
-		} else {
-			pdf.Cell(nil, desc)
-			pdf.Br(40)
-		}
-	*/
 
 	pdf.Line(20, pdf.GetY()-20, 575, pdf.GetY()-20)
 
@@ -359,9 +293,35 @@ func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 		pdf.SetTextColor(255, 0, 0)
 	}
 	pdf.Cell(nil, tlp)
-
 	pdf.Br(20)
 	pdf.SetX(20)
+
+	pdf.SetTextColor(1, 1, 1)
+	if ret.Status == "Resolved" {
+		err = pdf.SetFont("OpenSans-Italic", "", 16)
+		if err != nil {
+			log.Print(err.Error())
+			return
+		}
+
+		pdf.Line(20, pdf.GetY(), 575, pdf.GetY())
+		pdf.Br(20)
+		pdf.SetX(20)
+		pdf.Cell(nil, fmt.Sprintf("Close code: %s", ret.ResolutionStatus))
+		pdf.Br(20)
+		pdf.SetX(20)
+		pdf.Cell(nil, fmt.Sprintf("Close reason: %s", ret.Summary))
+		pdf.Br(20)
+		pdf.SetX(20)
+
+		if ret.ResolutionStatus == "TruePositive" {
+			if ret.ImpactStatus == "WithImpact" {
+				pdf.Cell(nil, fmt.Sprintf("Impact: True"))
+				pdf.Br(20)
+				pdf.SetX(20)
+			}
+		}
+	}
 
 	// Tasklogs
 	tasks, err := hive.GetCaseTasks(ret.Id)
@@ -464,7 +424,7 @@ func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 								pdf.SetX(ownerNameLength)
 							}
 
-							if pdf.GetY()+20 > pageHeight-50 {
+							if pdf.GetY()+20 > pageHeight-200 {
 								err = pdf.SetFont("OpenSans", "", 10)
 								if err != nil {
 									log.Print(err.Error())
@@ -503,7 +463,6 @@ func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 	}
 
 	// FIXME - pages
-	//fmt.Println(pdf.GetPages())
 
 	// IOCs
 	//hive.GetCaseArtifacts(ret.Id)
@@ -558,42 +517,17 @@ func generatePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 					continue
 				}
 
-				pdf.Cell(nil, fmt.Sprintf("%s	%s	 %t	  %t", artifact.DataType, artifact.Data, artifact.Sighted, artifact.Ioc))
+				pdf.Cell(nil, fmt.Sprintf("%s %s %t %t", artifact.DataType, artifact.Data, artifact.Sighted, artifact.Ioc))
 				pdf.Br(20)
 				pdf.SetX(20)
 
-				fmt.Println(artifact)
-
-				//fmt.Println(artifact.Data)
 			}
 		}
 	}
 
 	// Exact position
-	pdfName := fmt.Sprintf("%s.pdf", ret.Id)
+	pdfName := fmt.Sprintf("reports/%s.pdf", ret.Id)
 
 	pdf.WritePdf(pdfName)
 	fmt.Printf("GENERATED %s!\n", pdfName)
-}
-
-func main() {
-	hiveurl, apikey := getHiveLogin()
-	hive := thehive.CreateLogin(hiveurl, apikey, false)
-
-	/*
-		if len(os.Args) < 2 {
-			fmt.Printf("Missing case.\nUsage: go run report.go CaseID\n")
-			os.Exit(3)
-		}
-		fmt.Println(os.Args[1])
-
-		ret, err := hive.GetCase(os.Args[1])
-	*/
-	ret, err := hive.GetCase("AWJngikPX_yl8AikPKuN")
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(3)
-	}
-
-	generatePdf(hive, ret)
 }
