@@ -652,11 +652,27 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 
 	err = pdf.WritePdf(pdfName)
 	if err != nil {
-		log.Println(err)
-		os.Mkdir("reports", os.ModePerm)
-		pdf.WritePdf(pdfName)
+		//log.Println(err)
+		err = os.Mkdir("reports", os.ModePerm)
+		if err != nil {
+			log.Printf("Failed generating: %s", err)
+			time.Sleep(30 * time.Second)
+			os.Exit(3)
+		}
+
+		err = pdf.WritePdf(pdfName)
+		if err != nil {
+			log.Printf("Failed generating: %s", err)
+			time.Sleep(30 * time.Second)
+			os.Exit(3)
+		} else {
+			log.Printf("GENERATED %s!\n", pdfName)
+			time.Sleep(10 * time.Second)
+		}
+	} else {
+		log.Printf("GENERATED %s!\n", pdfName)
+		time.Sleep(10 * time.Second)
 	}
-	log.Printf("GENERATED %s!\n", pdfName)
 }
 
 // Returns thehive login info
@@ -724,12 +740,12 @@ func appMain(driver gxui.Driver) {
 			os.Exit(3)
 		}
 
+		// FIXME
 		url, apikey, err := getHiveLogin()
 		if err != nil {
 			log.Printf("Credential error: %s", err)
 			os.Exit(3)
 		}
-
 		hive := thehive.CreateLogin(url, apikey, false)
 
 		// Try to get the ID
