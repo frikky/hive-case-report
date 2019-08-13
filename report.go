@@ -1,13 +1,19 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/frikky/hive4go"
+	"github.com/google/gxui"
+	"github.com/google/gxui/drivers/gl"
+	"github.com/google/gxui/samples/flags"
 	"github.com/signintech/gopdf"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
 	"time"
 )
 
@@ -462,7 +468,24 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 		pdf.SetX(20)
 
 		pdf.SetTextColor(1, 1, 1)
-		for _, item := range tasks.Detail {
+		for count, item := range tasks.Detail {
+			tasklogs, err := hive.GetTaskLogs(item.Id)
+			if err != nil {
+				log.Print("Tasklog error: %s", err)
+				return
+			}
+
+			// Always new page when tasklog with data
+			if len(tasklogs.Detail) > 0 && count != 0 {
+				addLocalPage(ret, tlp, pageHeight)
+			}
+
+			if count == 0 {
+				pdf.Line(20, pdf.GetY()+20, 575, pdf.GetY()+20)
+				pdf.Br(25)
+				pdf.SetX(20)
+			}
+
 			// Get tasks
 			err = pdf.SetFont("OpenSans-Bold", "", 14)
 			if err != nil {
@@ -491,9 +514,6 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 				}
 			}
 			pdf.SetTextColor(1, 1, 1)
-			pdf.Line(20, pdf.GetY()+20, 575, pdf.GetY()+20)
-			pdf.Br(25)
-			pdf.SetX(20)
 			pdf.Cell(nil, fmt.Sprintf("Title: %s", item.Title))
 			pdf.Br(20)
 			pdf.SetX(20)
@@ -506,21 +526,21 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 			pdf.Cell(nil, fmt.Sprintf("Type: %s", item.Type))
 			pdf.Br(20)
 			pdf.SetX(20)
+
 			pdf.Cell(nil, fmt.Sprintf("Description: "))
 			pdf.Br(20)
 			pdf.SetX(20)
+			pdf.SetTextColor(100, 100, 100)
 			fixOutOfBounds(item.Description, pageWidth, pageHeight, pageWidthCheck, ret, tlp, 20.0)
-
-			tasklogs, _ := hive.GetTaskLogs(item.Id)
+			pdf.SetTextColor(1, 1, 1)
 
 			err = pdf.SetFont("OpenSans-Italic", "", 14)
 			if err != nil {
-				log.Print(err.Error())
+				log.Print("FontsettingFontsetting  error: %s", err)
 				return
 			}
 
 			if len(tasklogs.Detail) <= 0 {
-				//log.Println(pdf.GetY())
 				if pdf.GetY()+20 > pageHeight-200 {
 					err = pdf.SetFont("OpenSans", "", 10)
 					if err != nil {
@@ -558,6 +578,8 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 						log.Print(err.Error())
 						return
 					}
+
+					pdf.SetTextColor(1, 1, 1)
 					pdf.Cell(nil, fmt.Sprintf("%s: ", item.Owner))
 					ownerNameLength := pdf.GetX()
 
@@ -569,7 +591,7 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 					}
 
 					// Message, owner,
-					fixOutOfBounds(tasklog.Message, pageWidth, pageHeight, pageWidthCheck, ret, tlp, ownerNameLength)
+					//fixOutOfBounds(tasklog.Message, pageWidth, pageHeight, pageWidthCheck, ret, tlp, ownerNameLength)
 					desc = cleanupText(tasklog.Message)
 
 					realWidth, _ := pdf.MeasureTextWidth(desc)
@@ -578,12 +600,11 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 							itemWidth, _ := pdf.MeasureTextWidth(item)
 
 							// Arbitrary number much
-							if pdf.GetX()+itemWidth > pageWidth+pageWidthCheck-100 {
+							if pdf.GetX()+itemWidth > pageWidth+pageWidthCheck-400 {
 								pdf.Br(20)
 								pdf.SetX(ownerNameLength)
 							}
 
-							log.Println(pdf.GetY(), pageHeight-100)
 							if pdf.GetY()+20 > pageHeight-100 {
 								err = pdf.SetFont("OpenSans", "", 10)
 								if err != nil {
@@ -636,4 +657,121 @@ func GeneratePdf(hive thehive.Hivedata, ret *thehive.HiveCaseResp) {
 		pdf.WritePdf(pdfName)
 	}
 	log.Printf("GENERATED %s!\n", pdfName)
+}
+
+// Returns thehive login info
+func getHiveLogin() (string, string, error) {
+	var err error
+	var configpath string
+
+	configpath = "config.json"
+
+	file, err := ioutil.ReadFile(configpath)
+
+	if err != nil {
+		fmt.Printf("Error getting hive json: %s\n", err)
+		return "", "", err
+	}
+
+	type hive struct {
+		HiveUrl string `json:"hiveurl"`
+		HiveApi string `json:"hiveapikey"`
+	}
+
+	parsedRet := new(hive)
+	err = json.Unmarshal(file, parsedRet)
+	if err != nil {
+		fmt.Printf("Error unmarshaling hive json: %s\n", err)
+		return "", "", err
+	}
+
+	return parsedRet.HiveUrl, parsedRet.HiveApi, nil
+}
+
+func appMain(driver gxui.Driver) {
+	theme := flags.CreateTheme(driver)
+
+	// Create splitter for textboxes
+	splitterAB := theme.CreateSplitterLayout()
+	splitterAB.SetOrientation(gxui.Horizontal)
+
+	// Create text holders
+	holder := theme.CreatePanelHolder()
+
+	// Create temporary text in boxes
+	textBox := theme.CreateTextBox()
+	//textBox.SetText("HELO")
+
+	// Add textboxes to panels
+	holder.AddPanel(textBox, "CaseID or Case Number")
+
+	// Add panels
+	splitterAB.AddChild(holder)
+
+	// Create button
+	button := theme.CreateButton()
+	button.SetText("Click here to generate case statistics")
+
+	// Button for creating stuff
+	button.OnClick(func(gxui.MouseEvent) {
+		lineStart := textBox.LineStart(0)
+		lineEnd := textBox.LineEnd(0)
+
+		word := textBox.TextAt(lineStart, lineEnd)
+
+		if len(word) == 0 {
+			log.Println("Can't be empty!")
+			os.Exit(3)
+		}
+
+		url, apikey, err := getHiveLogin()
+		if err != nil {
+			log.Printf("Credential error: %s", err)
+			os.Exit(3)
+		}
+
+		hive := thehive.CreateLogin(url, apikey, false)
+
+		// Try to get the ID
+		if len(word) != 20 {
+			searchJson := fmt.Sprintf(`{"query": {"_and": [{"_in": {"_field": "caseId", "_values": ["%s"]}}]}}`, word)
+
+			ret, err := hive.FindCases([]byte(searchJson))
+			if err != nil {
+				log.Printf("Error finding case %s. Ret: %s\n", err, ret)
+				os.Exit(3)
+			}
+
+			if strings.Contains(string(ret.Raw), "Invalid search query") {
+				log.Printf("Error - CaseId and number %s doesn't exist.", word)
+				os.Exit(3)
+			}
+			//log.Printf(string(ret.Raw))
+			GeneratePdf(hive, &ret.Detail[0])
+		} else {
+			ret, err := hive.GetCase(word)
+			if err != nil {
+				log.Println(err)
+				os.Exit(3)
+			}
+
+			GeneratePdf(hive, ret)
+		}
+
+	})
+
+	// Split vertically
+	vSplitter := theme.CreateSplitterLayout()
+	vSplitter.AddChild(splitterAB)
+	vSplitter.AddChild(button)
+
+	// Generate the window
+	window := theme.CreateWindow(400, 100, "Case statistics")
+	window.SetScale(flags.DefaultScaleFactor)
+	window.AddChild(vSplitter)
+	window.OnClose(driver.Terminate)
+}
+
+func main() {
+	gl.StartDriver(appMain)
 }
