@@ -13,7 +13,7 @@ go run report.go
 
 ## Sample
 ![firstpage](https://github.com/frikky/hive-case-report/blob/master/images/Firstpage.PNG?raw=true)
-![morepages](https://github.com/frikky/hive-case-report/blob/master/images/MorePages.PNG?raw=true)
+![morepages](https://github.com/frikky/hive-case-report/blob/master/images/Morepages.PNG?raw=true)
 
 ## Usage - windows export
 ```bash
