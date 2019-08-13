@@ -1,5 +1,5 @@
-config.json
 *.pdf
+config.json
 export.sh
 *.swo
 *.swp

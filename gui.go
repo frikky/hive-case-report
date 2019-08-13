@@ -8,7 +8,9 @@ import (
 	"github.com/google/gxui/drivers/gl"
 	"github.com/google/gxui/samples/flags"
 	"io/ioutil"
+	"log"
 	"os"
+	"strings"
 )
 
 // Returns thehive login info
@@ -16,7 +18,7 @@ func getHiveLogin() (string, string, error) {
 	var err error
 	var configpath string
 
-	configpath = "../config.json"
+	configpath = "config.json"
 
 	file, err := ioutil.ReadFile(configpath)
 
@@ -37,6 +39,8 @@ func getHiveLogin() (string, string, error) {
 		return "", "", err
 	}
 
+	log.Printf("%#v", parsedRet)
+
 	return parsedRet.HiveUrl, parsedRet.HiveApi, nil
 }
 
@@ -55,7 +59,7 @@ func appMain(driver gxui.Driver) {
 	//textBox.SetText("HELO")
 
 	// Add textboxes to panels
-	holder.AddPanel(textBox, "CaseID")
+	holder.AddPanel(textBox, "CaseID or Case Number")
 
 	// Add panels
 	splitterAB.AddChild(holder)
@@ -71,16 +75,45 @@ func appMain(driver gxui.Driver) {
 
 		word := textBox.TextAt(lineStart, lineEnd)
 
-		// Generate the report
-		url, apikey, err := getHiveLogin()
-		hive := thehive.CreateLogin(url, apikey, false)
-		ret, err := hive.GetCase(word)
-		if err != nil {
-			fmt.Println(err)
+		if len(word) == 0 {
+			log.Println("Can't be empty!")
 			os.Exit(3)
 		}
 
-		GeneratePdf(hive, ret)
+		url, apikey, err := getHiveLogin()
+		if err != nil {
+			log.Printf("Credential error: %s", err)
+			os.Exit(3)
+		}
+
+		hive := thehive.CreateLogin(url, apikey, false)
+
+		// Try to get the ID
+		if len(word) != 20 {
+			searchJson := fmt.Sprintf(`{"query": {"_and": [{"_in": {"_field": "caseId", "_values": ["%s"]}}]}}`, word)
+
+			ret, err := hive.FindCases([]byte(searchJson))
+			if err != nil {
+				log.Printf("Error finding case %s. Ret: %s\n", err, ret)
+				os.Exit(3)
+			}
+
+			if strings.Contains(string(ret.Raw), "Invalid search query") {
+				log.Printf("Error - CaseId and number %s doesn't exist.", word)
+				os.Exit(3)
+			}
+			log.Printf(string(ret.Raw))
+			GeneratePdf(hive, &ret.Detail[0])
+		} else {
+			ret, err := hive.GetCase(word)
+			if err != nil {
+				log.Println(err)
+				os.Exit(3)
+			}
+
+			GeneratePdf(hive, ret)
+		}
+
 	})
 
 	// Split vertically
